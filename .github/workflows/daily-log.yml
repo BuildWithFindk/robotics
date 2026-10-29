@@ -1,0 +1,83 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .github/workflows/daily-log.yml
+#
+# Daily Dev Log — runs 5 times a day and commits the log each time.
+# GitHub cron is always UTC. Nepal = UTC+5:45.
+#
+#   NPT 08:43 AM  →  02:58 UTC
+#   NPT 11:16 AM  →  05:31 UTC
+#   NPT 02:09 PM  →  08:24 UTC
+#   NPT 05:37 PM  →  11:52 UTC
+#   NPT 10:52 PM  →  17:07 UTC
+#
+# Note: GitHub may start scheduled runs a few minutes late when its
+# servers are busy, so the real times can drift a little.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Daily Dev Log
+
+on:
+  schedule:
+    - cron: '58 2 * * *'    # 08:43 AM NPT
+    - cron: '31 5 * * *'    # 11:16 AM NPT
+    - cron: '24 8 * * *'    # 02:09 PM NPT
+    - cron: '52 11 * * *'   # 05:37 PM NPT
+    - cron: '7 17 * * *'    # 10:52 PM NPT
+
+  # "Run workflow" button for manual testing
+  workflow_dispatch:
+
+# Needed so the workflow can push commits back to the repo
+permissions:
+  contents: write
+
+# Never run two logger jobs at the same time (avoids push conflicts)
+concurrency:
+  group: daily-log
+  cancel-in-progress: false
+
+jobs:
+  generate-log:
+    name: Generate & Commit Daily Log
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+
+      # fetch-depth: 0 = full history (needed for git log --since)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: none
+          coverage: none
+
+      # Optional repo variables (Settings → Secrets and variables → Actions
+      # → Variables): PROJECT_NAME, LOG_GIT_NAME, LOG_GIT_EMAIL, TIMEZONE.
+      # Unset variables are empty strings; config.php falls back to defaults.
+      - name: Run logger.php
+        env:
+          PROJECT_NAME:  ${{ vars.PROJECT_NAME }}
+          LOG_GIT_NAME:  ${{ vars.LOG_GIT_NAME }}
+          LOG_GIT_EMAIL: ${{ vars.LOG_GIT_EMAIL }}
+          TZ:            ${{ vars.TIMEZONE || 'Asia/Kathmandu' }}
+        run: php logger.php
+
+      # Same TZ as the logger, so the date matches the log file name.
+      - name: Post log summary
+        env:
+          TZ: ${{ vars.TIMEZONE || 'Asia/Kathmandu' }}
+        run: |
+          TODAY=$(date +%Y-%m-%d)
+          echo "## 📋 Dev Log — $TODAY" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "logs/$TODAY.md" ]; then
+            cat "logs/$TODAY.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "_No log file found for $TODAY._" >> "$GITHUB_STEP_SUMMARY"
+          fi
