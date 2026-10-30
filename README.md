@@ -69,8 +69,8 @@ auto-commit-logger/
 ## Running locally
 
 ```bash
-git config user.name "BuildWithFindk"
-git config user.email "rawalroshan950@gmail.com"
+git config user.name "EnterYourName"
+git config user.email "yourmail@gmail.com"
 php logger.php
 ```
 
